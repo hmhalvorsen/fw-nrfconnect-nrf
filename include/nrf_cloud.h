@@ -61,6 +61,14 @@ enum nrf_cloud_sensor {
 	NRF_CLOUD_SENSOR_FLIP,
 	/** The TEMP sensor on the device. */
 	NRF_CLOUD_SENSOR_TEMP,
+	/** The RSSI data obtained from the modem. */
+	NRF_CLOUD_LTE_LINK_RSSI,
+	/** The current link BAND obtained from the modem. */
+	NRF_CLOUD_LTE_LINK_BAND,
+	/** The current link OPERATOR obtained from the modem. */
+	NRF_CLOUD_LTE_LINK_OPERATOR,
+	/** The current link IP ADDRESS obtained from the modem. */
+	NRF_CLOUD_LTE_LINK_IP_ADDRESS,
 };
 
 /** @brief User input sequence values for user association type

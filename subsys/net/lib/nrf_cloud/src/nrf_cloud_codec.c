@@ -36,16 +36,20 @@ LOG_MODULE_REGISTER(nrf_cloud_codec);
 struct ua_encode_info {
 	const char *desc_str;
 	void (*encode)(const struct nrf_cloud_data *sequence,
-		       struct nrf_cloud_data *output);
+			   struct nrf_cloud_data *output);
 };
 
 static void encode_ua_button_sequence(const struct nrf_cloud_data *sequence,
-				      struct nrf_cloud_data *output);
+					  struct nrf_cloud_data *output);
 
 static const char * const sensor_type_str[] = {
-	[NRF_CLOUD_SENSOR_GPS] = "GPS",
-	[NRF_CLOUD_SENSOR_FLIP] = "FLIP",
-	[NRF_CLOUD_SENSOR_TEMP] = "TEMP",
+	[NRF_CLOUD_SENSOR_GPS]			= "GPS",
+	[NRF_CLOUD_SENSOR_FLIP]			= "FLIP",
+	[NRF_CLOUD_SENSOR_TEMP]			= "TEMP",
+	[NRF_CLOUD_LTE_LINK_RSSI]		= "RSSI",
+	[NRF_CLOUD_LTE_LINK_BAND]		= "BAND",
+	[NRF_CLOUD_LTE_LINK_OPERATOR]	= "OPERATOR",
+	[NRF_CLOUD_LTE_LINK_IP_ADDRESS]	= "IPADR",
 };
 
 static const struct ua_encode_info ua_encode_info[] = {
@@ -56,7 +60,7 @@ static const struct ua_encode_info ua_encode_info[] = {
 };
 
 static void encode_ua_button_sequence(const struct nrf_cloud_data *sequence,
-				      struct nrf_cloud_data *output)
+					  struct nrf_cloud_data *output)
 {
 	u32_t len = 0;
 	const u8_t *input = sequence->ptr;
@@ -69,7 +73,7 @@ static void encode_ua_button_sequence(const struct nrf_cloud_data *sequence,
 
 	for (u32_t i = 0; i < sequence->len; i += 2) {
 		encoded[len++] =
-		    ((input[i] << 4) & 0xF0) + (input[i + 1] & 0x0F);
+			((input[i] << 4) & 0xF0) + (input[i + 1] & 0x0F);
 	}
 
 	if (sequence->len % 2) {
@@ -183,9 +187,9 @@ int nrf_cloud_encode_ua(const struct nrf_cloud_ua_param *input,
 	cJSON *pattern_obj = cJSON_CreateIntArray(enc_seq.ptr, enc_seq.len);
 
 	if ((root_obj  == NULL) || (state_obj == NULL) ||
-	    (reported_obj == NULL) || (pairing_obj == NULL) ||
-	    (config_obj == NULL) || (status_obj == NULL)   ||
-	    (pattern_obj == NULL)) {
+		(reported_obj == NULL) || (pairing_obj == NULL) ||
+		(config_obj == NULL) || (status_obj == NULL)   ||
+		(pattern_obj == NULL)) {
 		cJSON_Delete(root_obj);
 		cJSON_Delete(state_obj);
 		cJSON_Delete(reported_obj);
@@ -272,7 +276,7 @@ int nrf_cloud_encode_sensor_data(const struct nrf_cloud_sensor_data *sensor,
 }
 
 int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *input,
-				     enum nfsm_state *requested_state)
+					 enum nfsm_state *requested_state)
 {
 	__ASSERT_NO_MSG(requested_state != NULL);
 	__ASSERT_NO_MSG(input != NULL);
@@ -337,7 +341,7 @@ int nrf_cloud_encode_state(u32_t reported_state, struct nrf_cloud_data *output)
 	cJSON *pairing_obj = cJSON_CreateObject();
 
 	if ((root_obj  == NULL) || (state_obj == NULL) ||
-	    (reported_obj == NULL) || (pairing_obj == NULL)) {
+		(reported_obj == NULL) || (pairing_obj == NULL)) {
 		cJSON_Delete(root_obj);
 		cJSON_Delete(state_obj);
 		cJSON_Delete(reported_obj);
@@ -362,7 +366,7 @@ int nrf_cloud_encode_state(u32_t reported_state, struct nrf_cloud_data *output)
 		cJSON *config_obj = cJSON_CreateObject();
 
 		cJSON *method_obj = cJSON_CreateString(
-		    ua_encode_info[NRF_CLOUD_UA_BUTTON].desc_str);
+			ua_encode_info[NRF_CLOUD_UA_BUTTON].desc_str);
 
 		if ((config_obj == NULL) || (method_obj == NULL)) {
 			cJSON_Delete(root_obj);
@@ -502,7 +506,7 @@ int nrf_cloud_decode_data_endpoint(const struct nrf_cloud_data *input,
 	cJSON *topic_obj = json_object_decode(pairing_obj, "topics");
 
 	if ((pairing_state_obj == NULL) || (topic_obj == NULL) ||
-	    (pairing_state_obj->type != cJSON_String)) {
+		(pairing_state_obj->type != cJSON_String)) {
 		cJSON_Delete(root_obj);
 		return -ENOENT;
 	}
