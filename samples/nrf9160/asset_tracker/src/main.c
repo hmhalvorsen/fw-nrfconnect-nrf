@@ -16,6 +16,7 @@
 #if defined(CONFIG_BSD_LIBRARY)
 #include <bsd.h>
 #include <lte_lc.h>
+#include <lte_li.h>
 #endif
 
 
@@ -28,6 +29,7 @@
  * that an error has occurred.
  */
 #define LEDS_ERROR_UPDATE_INTERVAL      K_MSEC(250)
+#define LTE_STATUS_UPDATE_INTERVAL K_SECONDS(5)
 #define CALIBRATION_PRESS_DURATION 	K_SECONDS(5)
 
 #if defined(CONFIG_FLIP_POLL)
@@ -103,13 +105,24 @@ struct env_sensor {
 	struct device *dev;
 };
 
+struct lte_status {
+	enum nrf_cloud_sensor type;
+	enum lte_link_data_type data_type;
+	enum lte_link_status status;
+	enum lte_link_data_behavior behavior;
+};
+
 /* Array containing all nRF Cloud sensor types that are available to the
  * application.
  */
 static const enum nrf_cloud_sensor available_sensors[] = {
 	NRF_CLOUD_SENSOR_GPS,
 	NRF_CLOUD_SENSOR_FLIP,
-	NRF_CLOUD_SENSOR_TEMP
+	NRF_CLOUD_SENSOR_TEMP,
+	NRF_CLOUD_LTE_LINK_RSSI,
+	NRF_CLOUD_LTE_LINK_BAND,
+	NRF_CLOUD_LTE_LINK_OPERATOR,
+	NRF_CLOUD_LTE_LINK_IP_ADDRESS,
 };
 
 static struct env_sensor temp_sensor = {
@@ -121,6 +134,41 @@ static struct env_sensor temp_sensor = {
 /* Array containg environment sensors available on the board. */
 static struct env_sensor *env_sensors[] = {
 	&temp_sensor
+};
+
+static struct lte_status lte_status_rssi = {
+	.type = NRF_CLOUD_LTE_LINK_RSSI,
+	.data_type = LTE_LINK_DATA_TYPE_SHORT,
+	.status = LTE_LINK_STATUS_RSSI,
+	.behavior = LTE_LINK_BEHAVIOR_DYNAMIC,
+};
+
+static struct lte_status lte_status_band = {
+	.type = NRF_CLOUD_LTE_LINK_BAND,
+	.data_type = LTE_LINK_DATA_TYPE_SHORT,
+	.status = LTE_LINK_STATUS_BAND,
+	.behavior = LTE_LINK_BEHAVIOR_STATIC,
+};
+
+static struct lte_status lte_status_operator = {
+	.type = NRF_CLOUD_LTE_LINK_OPERATOR,
+	.data_type = LTE_LINK_DATA_TYPE_STRING,
+	.status = LTE_LINK_STATUS_OPERATOR,
+	.behavior = LTE_LINK_BEHAVIOR_STATIC,
+};
+
+static struct lte_status lte_status_ip_address = {
+	.type = NRF_CLOUD_LTE_LINK_IP_ADDRESS,
+	.data_type = LTE_LINK_DATA_TYPE_STRING,
+	.status = LTE_LINK_STATUS_IP_ADDRESS,
+	.behavior = LTE_LINK_BEHAVIOR_STATIC,
+};
+
+static struct lte_status *lte_status_data[] = {
+	&lte_status_rssi,
+	&lte_status_band,
+	&lte_status_operator,
+	&lte_status_ip_address,
 };
 
  /* Variables to keep track of nRF cloud user association. */
@@ -135,6 +183,7 @@ static struct gps_data nmea_data;
 static struct nrf_cloud_sensor_data flip_cloud_data;
 static struct nrf_cloud_sensor_data gps_cloud_data;
 static struct nrf_cloud_sensor_data env_cloud_data[ARRAY_SIZE(env_sensors)];
+static struct nrf_cloud_sensor_data lte_cloud_data[ARRAY_SIZE(lte_status_data)];
 static atomic_val_t send_data_enable;
 
 /* Flag used for flip detection */
@@ -145,6 +194,7 @@ static struct k_work connect_work;
 static struct k_delayed_work leds_update_work;
 static struct k_delayed_work flip_poll_work;
 static struct k_delayed_work long_press_button_work;
+static struct k_delayed_work link_status_work;
 
 enum error_type {
 	ERROR_NRF_CLOUD,
@@ -318,6 +368,53 @@ exit:
 	}
 }
 
+/**@brief Poll LTE link status data from the modem and send to cloud. */
+static void lte_status_send(struct k_work *work)
+{
+	size_t len;
+	char data_buffer[LTE_LI_MAX_RESPONSE_SIZE] = {0};
+
+	if (!atomic_get(&send_data_enable)) {
+		return;
+	}
+
+	for (size_t i = 0; i < ARRAY_SIZE(lte_status_data); i++) {
+		if (lte_status_data[i]->behavior == LTE_LINK_BEHAVIOR_STATIC &&
+			lte_cloud_data[i].data.ptr != NULL) {
+				continue;
+		}
+
+		len = lte_li_link_status_update(lte_status_data[i]->status,
+						lte_status_data[i]->data_type,
+						data_buffer,
+						ARRAY_SIZE(data_buffer));
+		if (len < 0) {
+			printk("LTE link data not obtained: %d\n", len);
+			continue;
+		}
+
+		if(lte_cloud_data[i].data.ptr != NULL &&
+			memcmp(data_buffer, lte_cloud_data[i].data.ptr, len) == 0) {
+			continue;
+		}
+
+		lte_cloud_data[i].data.ptr = data_buffer;
+		lte_cloud_data[i].data.len = len;
+		lte_cloud_data[i].tag += 1;
+
+		if (lte_cloud_data[i].tag == 0) {
+			lte_cloud_data[i].tag = 0x1;
+		}
+
+		sensor_data_send(&lte_cloud_data[i]);
+	}
+
+	if (work) {
+		k_delayed_work_submit(&link_status_work,
+				LTE_STATUS_UPDATE_INTERVAL);
+	}
+}
+
 /**@brief Get environment data from sensors and send to cloud. */
 static void env_data_send(void)
 {
@@ -360,6 +457,7 @@ static void env_data_send(void)
 
 		sensor_data_send(&env_cloud_data[i]);
 	}
+
 }
 
 /**@brief Update LEDs state. */
@@ -741,6 +839,7 @@ static void work_init(void)
 	k_delayed_work_init(&leds_update_work, leds_update);
 	k_delayed_work_init(&flip_poll_work, flip_send);
 	k_delayed_work_init(&long_press_button_work, accelerometer_calibrate);
+	k_delayed_work_init(&link_status_work, lte_status_send);
 	k_delayed_work_submit(&leds_update_work, LEDS_UPDATE_INTERVAL);
 }
 
@@ -855,12 +954,32 @@ static void env_sensor_init(void)
 	}
 }
 
+/**brief Initialize LTE status containers. */
+static void lte_status_data_init(void)
+{
+	int err;
+
+	err = lte_li_init();
+	if (err) {
+		printk("Link info could not be established: %d\n", err);
+		return;
+	}
+
+	for (int i = 0; i < ARRAY_SIZE(lte_status_data); i++) {
+		lte_cloud_data[i].type = lte_status_data[i]->type;
+		lte_cloud_data[i].tag = 0x1;
+	}
+
+	k_delayed_work_submit(&link_status_work, LTE_STATUS_UPDATE_INTERVAL);
+}
+
 /**@brief Initializes the sensors that are used by the application. */
 static void sensors_init(void)
 {
 	gps_init();
 	flip_detection_init();
 	env_sensor_init();
+	lte_status_data_init();
 
 	gps_cloud_data.type = NRF_CLOUD_SENSOR_GPS;
 	gps_cloud_data.tag = 0x1;
