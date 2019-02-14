@@ -1,0 +1,30 @@
+#
+# Copyright (c) 2019 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
+#
+
+menuconfig LTE_LINK_INFO
+    bool "nRF91 LTE Link info library"
+    select BSD_LIBRARY
+    select AT_CMD_PARSER
+    select AT_CMD_PARAMS
+
+if LTE_LINK_INFO
+
+config LTE_LI_MAX_AT_PARAMS_RSP
+    int "Maximum number of response parameters"
+    default 8
+    help
+        Set the maximum number of parameters the parser
+        will check for in any given string.
+
+config LTE_LI_BUFFER_SIZE
+    int "Size of buffer used to read data from the socket"
+    default 128
+    help
+        Set the buffer size which contains the returned
+        string after an AT-command. The buffer is processed
+        through the parser.
+
+endif # LTE_LINK_INFO
