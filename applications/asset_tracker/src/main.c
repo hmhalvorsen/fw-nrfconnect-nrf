@@ -16,6 +16,8 @@
 #if defined(CONFIG_BSD_LIBRARY)
 #include <bsd.h>
 #include <lte_lc.h>
+#include <modem_info.h>
+#include <device_info.h>
 #endif
 
 
@@ -122,7 +124,9 @@ static const enum nrf_cloud_sensor available_sensors[] = {
 	NRF_CLOUD_SENSOR_BUTTON,
 	NRF_CLOUD_SENSOR_TEMP,
 	NRF_CLOUD_SENSOR_HUMID,
-	NRF_CLOUD_SENSOR_AIR_PRESS
+	NRF_CLOUD_SENSOR_AIR_PRESS,
+	NRF_CLOUD_LTE_LINK_RSRP,
+	NRF_CLOUD_DEVICE_INFO,
 };
 
 static struct env_sensor temp_sensor = {
@@ -163,6 +167,8 @@ static struct nrf_cloud_sensor_data flip_cloud_data;
 static struct nrf_cloud_sensor_data gps_cloud_data;
 static struct nrf_cloud_sensor_data button_cloud_data;
 static struct nrf_cloud_sensor_data env_cloud_data[ARRAY_SIZE(env_sensors)];
+static struct nrf_cloud_sensor_data signal_strength_cloud_data;
+static struct nrf_cloud_sensor_data device_cloud_data;
 static atomic_val_t send_data_enable;
 
 /* Flag used for flip detection */
@@ -173,6 +179,7 @@ static struct k_work connect_work;
 static struct k_delayed_work leds_update_work;
 static struct k_delayed_work flip_poll_work;
 static struct k_delayed_work long_press_button_work;
+static struct k_work device_status_work;
 
 enum error_type {
 	ERROR_NRF_CLOUD,
@@ -370,6 +377,52 @@ exit:
 		k_delayed_work_submit(&flip_poll_work,
 					FLIP_POLL_INTERVAL);
 	}
+}
+
+/**@brief Callback handler for LTE RSRP data. */
+static void modem_rsrp_handler(char *rsrp_value, size_t len)
+{
+	if (!atomic_get(&send_data_enable)) {
+		return;
+	}
+
+	signal_strength_cloud_data.data.ptr = rsrp_value;
+	signal_strength_cloud_data.data.len = len;
+	signal_strength_cloud_data.tag += 1;
+
+	if (signal_strength_cloud_data.tag == 0) {
+		signal_strength_cloud_data.tag = 0x1;
+	}
+
+	sensor_data_send(&signal_strength_cloud_data);
+}
+
+/**@brief Poll device info and send data to the cloud. */
+static void device_status_send(struct k_work *work)
+{
+	int len;
+	char data_buffer[DEVICE_INFO_STRING_SIZE] = {0};
+
+	if (!atomic_get(&send_data_enable)) {
+		return;
+	}
+
+	len = device_info_get_json_string(data_buffer);
+	if (len < 0) {
+		return;
+	}
+
+	device_cloud_data.data.ptr = data_buffer;
+	device_cloud_data.data.len = len;
+	device_cloud_data.tag += 1;
+
+	if (device_cloud_data.tag == 0) {
+		device_cloud_data.tag = 0x1;
+	}
+
+	sensor_data_send(&device_cloud_data);
+
+	modem_info_rsrp_sub_init(modem_rsrp_handler);
 }
 
 /**@brief Get environment data from sensors and send to cloud. */
@@ -826,6 +879,7 @@ static void work_init(void)
 	k_delayed_work_init(&flip_poll_work, flip_send);
 	k_delayed_work_init(&long_press_button_work, accelerometer_calibrate);
 	k_delayed_work_submit(&leds_update_work, LEDS_ON_INTERVAL);
+	k_work_init(&device_status_work, device_status_send);
 }
 
 /**@brief Configures modem to provide LTE link. Blocks until link is
@@ -945,12 +999,33 @@ static void button_sensor_init(void)
 	button_cloud_data.tag = 0x1;
 }
 
+/**brief Initialize LTE status containers. */
+static void modem_data_init(void)
+{
+	int err;
+
+	err = modem_info_init();
+	if (err) {
+		printk("Modem info could not be established: %d\n", err);
+		return;
+	}
+
+	signal_strength_cloud_data.type = NRF_CLOUD_LTE_LINK_RSRP;
+	signal_strength_cloud_data.tag = 0x1;
+
+	device_cloud_data.type = NRF_CLOUD_DEVICE_INFO;
+	device_cloud_data.tag = 0x1;
+
+	k_work_submit(&device_status_work);
+}
+
 /**@brief Initializes the sensors that are used by the application. */
 static void sensors_init(void)
 {
 	gps_init();
 	flip_detection_init();
 	env_sensor_init();
+	modem_data_init();
 	if (IS_ENABLED(CONFIG_CLOUD_BUTTON)) {
 		button_sensor_init();
 	}
