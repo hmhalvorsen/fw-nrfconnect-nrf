@@ -14,3 +14,6 @@ zephyr_include_directories(src)
 
 include_directories(src/orientation_detector)
 target_sources(app PRIVATE src/orientation_detector/orientation_detector.c)
+
+include_directories(src/device_info)
+target_sources(app PRIVATE src/device_info/device_info.c)
