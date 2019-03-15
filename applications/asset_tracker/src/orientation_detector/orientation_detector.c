@@ -86,7 +86,6 @@ int orientation_detector_calibrate(void)
 				SENSOR_CHAN_ACCEL_Y, &accel_data[1]);
 		err += sensor_channel_get(dev,
 				SENSOR_CHAN_ACCEL_Z, &accel_data[2]);
-
 		if (err) {
 			printk("sensor_channel_get failed\n");
 			return err;
