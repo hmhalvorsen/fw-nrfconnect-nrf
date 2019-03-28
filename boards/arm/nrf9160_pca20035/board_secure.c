@@ -15,7 +15,7 @@ static void pca20035_switch_to_xtal(void)
 
 static int pca20035_board_init(struct device *dev)
 {
-	pca20035_switch_to_xtal();
+	//pca20035_switch_to_xtal();
 
 	return 0;
 }

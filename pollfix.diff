@@ -1,0 +1,120 @@
+diff --git a/applications/asset_tracker/src/main.c b/applications/asset_tracker/src/main.c
+index 25dd5b1..ff29fa6 100644
+--- a/applications/asset_tracker/src/main.c
++++ b/applications/asset_tracker/src/main.c
+@@ -1116,12 +1116,10 @@ void main(void)
+ 	cloud_init();
+ 	modem_configure();
+ 	cloud_connect(NULL);
++	printk("main: %p\n", k_current_get());
+ 
+ 	while (true) {
+-		nrf_cloud_process();
+ 		input_process();
+-		k_sleep(K_MSEC(10));
+-		/* Put CPU to idle to save power */
+-		k_cpu_idle();
++		k_sleep(K_MSEC(10000000));
+ 	}
+ }
+diff --git a/subsys/net/lib/nrf_cloud/src/nrf_cloud_transport.c b/subsys/net/lib/nrf_cloud/src/nrf_cloud_transport.c
+index accecea..ec70487 100644
+--- a/subsys/net/lib/nrf_cloud/src/nrf_cloud_transport.c
++++ b/subsys/net/lib/nrf_cloud/src/nrf_cloud_transport.c
+@@ -70,6 +70,10 @@ static char rejected_topic[NCT_REJECTED_TOPIC_LEN + 1];
+ static char update_delta_topic[NCT_UPDATE_DELTA_TOPIC_LEN + 1];
+ static char update_topic[NCT_UPDATE_TOPIC_LEN + 1];
+ static char shadow_get_topic[NCT_SHADOW_GET_LEN + 1];
++/* Processing thread */
++static struct k_thread nct_process_thread;
++static K_THREAD_STACK_DEFINE(nct_process_thread_stack, 2048);
++static struct k_sem mqtt_connected_sem;
+ 
+ #define NCT_CC_SUBSCRIBE_ID 1234
+ #define NCT_DC_SUBSCRIBE_ID 8765
+@@ -428,6 +432,7 @@ static int nct_provision(void)
+ /* Connect to MQTT broker. */
+ int nct_mqtt_connect(void)
+ {
++	int err;
+ 	mqtt_client_init(&nct.client);
+ 
+ 	nct.client.broker = (struct sockaddr *)&nct.broker;
+@@ -447,7 +452,14 @@ int nct_mqtt_connect(void)
+ 	nct.client.transport.type = MQTT_TRANSPORT_NON_SECURE;
+ #endif
+ 
+-	return mqtt_connect(&nct.client);
++	err = mqtt_connect(&nct.client);
++	if (err) {
++		return err;
++	}
++
++	k_sem_give(&mqtt_connected_sem);
++
++	return 0;
+ }
+ 
+ /* Handle MQTT events. */
+@@ -564,6 +576,33 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
+ 	}
+ }
+ 
++void nct_process_thread_fn(void *arg1, void *arg2, void *arg3)
++{
++	size_t nfds = 1;
++	int err;
++	struct pollfd fds;
++
++	ARG_UNUSED(arg1);
++	ARG_UNUSED(arg2);
++	ARG_UNUSED(arg3);
++
++	k_sem_take(&mqtt_connected_sem, K_FOREVER);
++
++	fds.fd = nct.client.transport.tls.sock;
++	fds.events = POLLIN;
++
++	while (1) {
++		err = poll(&fds, nfds, K_SECONDS(CONFIG_MQTT_KEEPALIVE));
++		if (err > 0) {
++			mqtt_input(&nct.client);
++		} else {
++			printk("poll error: %d\n", err);
++		}
++
++		mqtt_live();
++	}
++}
++
+ int nct_init(void)
+ {
+ 	int err;
+@@ -580,7 +619,20 @@ int nct_init(void)
+ 		return err;
+ 	}
+ 
+-	return mqtt_init();
++	err = mqtt_init();
++	if (err) {
++		return err;
++	}
++
++	k_sem_init(&mqtt_connected_sem, 0, 1);
++
++	k_thread_create(&nct_process_thread, nct_process_thread_stack,
++			K_THREAD_STACK_SIZEOF(nct_process_thread_stack),
++			nct_process_thread_fn,
++			NULL, NULL, NULL,
++			5, 0, K_NO_WAIT);
++
++	return 0;
+ }
+ 
+ #if defined(CONFIG_NRF_CLOUD_STATIC_IPV4)
+@@ -859,3 +911,5 @@ void nct_process(void)
+ 	mqtt_input(&nct.client);
+ 	mqtt_live();
+ }
++
++

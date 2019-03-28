@@ -1,0 +1,1 @@
+clang-format-7 -style="{BasedOnStyle: LLVM, Language: Cpp, IndentWidth: 8, UseTab: Always, BreakBeforeBraces: Linux, AllowShortIfStatementsOnASingleLine: false, IndentCaseLabels: false, PointerAlignment: Right, SpaceAfterCStyleCast: false, MaxEmptyLinesToKeep: 2, ContinuationIndentWidth: 8}" -i $1
