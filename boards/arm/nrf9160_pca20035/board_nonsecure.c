@@ -21,16 +21,17 @@ LOG_MODULE_REGISTER(board_nonsecure, CONFIG_BOARD_LOG_LEVEL);
 #define ADP536X_I2C_DEV_NAME	DT_NORDIC_NRF_I2C_I2C_2_LABEL
 #define LC_MAX_READ_LENGTH	128
 
-#define AT_CMD_MAGPIO		"AT%XMAGPIO=1,1,1,450,451,746,803,698,748," \
-				"824,894,880,960,1710,2200,791,849,1574,1577"
+#define AT_CMD_TRACE		"AT%XMODEMTRACE=0"
+#define AT_CMD_TRACE_LEN	sizeof (AT_CMD_TRACE) - 1
+#define AT_CMD_MAGPIO		"AT%XMAGPIO=1,1,1,7,1,746,803,2,698,748,2,1710,2200,3,824,894,4,880,960,5,791,849,7,1574,1577"
 #define AT_CMD_MAGPIO_LEN	sizeof (AT_CMD_MAGPIO) - 1
 
 #ifdef CONFIG_BOARD_NRF9160_PCA20035_V0_2_2NS
 #define POWER_CTRL_1V8_PIN	3
 #define POWER_CTRL_3V3_PIN	28
+#endif
 
 static struct device *gpio_dev;
-#endif
 
 static int pca20035_magpio_configure(void)
 {
@@ -46,6 +47,25 @@ defined(CONFIG_NET_SOCKETS_OFFLOAD)
 		return -EFAULT;
 	}
 
+	LOG_DBG("AT CMD: %s", AT_CMD_TRACE);
+	buffer = send(at_socket_fd, AT_CMD_TRACE, AT_CMD_TRACE_LEN, 0);
+	if (buffer != AT_CMD_TRACE_LEN) {
+		LOG_ERR("TRACE command failed");
+		close(at_socket_fd);
+		return -EIO;
+	}
+
+	buffer = recv(at_socket_fd, read_buffer, LC_MAX_READ_LENGTH, 0);
+	LOG_DBG("AT RESP: %s", read_buffer);
+	if ((buffer < 2) ||
+	    (memcmp("OK", read_buffer, 2 != 0))) {
+		printk("TRACE command failed\n");
+		close(at_socket_fd);
+		return -EIO;
+	}
+
+	printk("TRACE successfully configured\n");
+
 	LOG_DBG("AT CMD: %s", AT_CMD_MAGPIO);
 	buffer = send(at_socket_fd, AT_CMD_MAGPIO, AT_CMD_MAGPIO_LEN, 0);
 	if (buffer != AT_CMD_MAGPIO_LEN) {
@@ -58,12 +78,12 @@ defined(CONFIG_NET_SOCKETS_OFFLOAD)
 	LOG_DBG("AT RESP: %s", read_buffer);
 	if ((buffer < 2) ||
 	    (memcmp("OK", read_buffer, 2 != 0))) {
-		LOG_ERR("MAGPIO command failed");
+		printk("MAGPIO command failed\n");
 		close(at_socket_fd);
 		return -EIO;
 	}
 
-	LOG_DBG("MAGPIO successfully configured");
+	printk("MAGPIO successfully configured\n");
 
 	close(at_socket_fd);
 #endif
@@ -236,6 +256,12 @@ static int pca20035_board_init(struct device *dev)
 {
 	int err;
 
+	gpio_dev = device_get_binding(LED0_GPIO_CONTROLLER);
+	if (gpio_dev == NULL) {
+		LOG_ERR("Could not get binding to LED GPIO controller");
+		return -ENODEV;
+	}
+
 #ifdef CONFIG_BOARD_NRF9160_PCA20035_V0_2_2NS
 	err = pca20035_power_ctrl_pins_init();
 	if (err) {
@@ -246,6 +272,7 @@ static int pca20035_board_init(struct device *dev)
 
 	err = power_mgmt_init();
 	if (err) {
+		gpio_pin_write(gpio_dev, LED0_GPIO_PIN, 1);
 		LOG_ERR("power_mgmt_init: failed! %d", err);
 		return err;
 	}
@@ -266,6 +293,7 @@ static int pca20035_board_init(struct device *dev)
 
 	err = pca20035_magpio_configure();
 	if (err) {
+		gpio_pin_write(gpio_dev, LED0_GPIO_PIN, 1);
 		LOG_ERR("pca20035_magpio_configure: failed! %d", err);
 		return err;
 	}
@@ -275,6 +303,7 @@ static int pca20035_board_init(struct device *dev)
 		return err;
 	}
 
+	gpio_pin_write(gpio_dev, LED1_GPIO_PIN, 1);
 
 	return 0;
 }
