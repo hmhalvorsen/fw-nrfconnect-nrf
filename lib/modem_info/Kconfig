@@ -37,6 +37,27 @@ config MODEM_INFO_THREAD_PRIO
 	default 0 if !MULTITHREADING
 	default 9
 
+config MODEM_INFO_DEVICE_STRING_NETWORK
+	bool
+	default y
+	help
+		Add the network information to the returned
+		device string.
+
+config MODEM_INFO_DEVICE_STRING_SIM
+	bool
+	default y
+	help
+		Add the sim information to the returned
+		device string.
+
+config MODEM_INFO_DEVICE_STRING_DEVICE
+	bool
+	default y
+	help
+		Add the device information to the returned
+		device string.
+
 config MODEM_INFO_ADD_BOARD
 	bool "Add board name to JSON string"
 	default y

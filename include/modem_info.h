@@ -19,7 +19,7 @@
 #define MODEM_INFO_MAX_RESPONSE_SIZE 100
 
 /** Size of the JSON string. */
-#define MODEM_INFO_JSON_STRING_SIZE 256
+#define MODEM_INFO_JSON_STRING_SIZE 512
 
 /** RSRP offset value. */
 #define MODEM_INFO_RSRP_OFFSET_VAL 141
@@ -30,9 +30,13 @@ typedef void (*rsrp_cb_t)(char rsrp_value);
 /**@brief LTE link information data. */
 enum modem_info {
 	MODEM_INFO_RSRP,	/**< Signal strength. */
-	MODEM_INFO_BAND,	/**< Current LTE band. */
-	MODEM_INFO_MODE,	/**< Current mode. */
+	MODEM_INFO_CUR_BAND,	/**< Current LTE band. */
+	MODEM_INFO_SUP_BAND,	/**< Supported LTE bands. */
+	MODEM_INFO_AREA_CODE,   /**< Tracking area code. */
+	MODEM_INFO_UE_MODE,	/**< Current mode. */
 	MODEM_INFO_OPERATOR,	/**< Current operator name. */
+	MODEM_INFO_MCC,		/**< Mobile country code. */
+	MODEM_INFO_MNC,		/**< Mobile network code. */
 	MODEM_INFO_CELLID,	/**< Cell ID of the device. */
 	MODEM_INFO_IP_ADDRESS,  /**< IP address of the device. */
 	MODEM_INFO_UICC,	/**< UICC state. */
@@ -40,15 +44,69 @@ enum modem_info {
 	MODEM_INFO_TEMP,	/**< Temperature level. */
 	MODEM_INFO_FW_VERSION,  /**< Modem firmware version. */
 	MODEM_INFO_ICCID,	/**< SIM ICCID */
+	MODEM_INFO_LTE_MODE,	/**< LTE-M support mode. */
+	MODEM_INFO_NBIOT_MODE,	/**< NB-IoT support mode. */
+	MODEM_INFO_GPS_MODE,	/**< GPS support mode. */
 	MODEM_INFO_COUNT,	/**< Number of legal elements in the enum. */
 };
 
-/** @brief Initialize the link information driver.
+struct lte_param {
+	u16_t value;
+	char string[MODEM_INFO_MAX_RESPONSE_SIZE];
+	char *data_name;
+	enum modem_info type;
+};
+
+struct network_param {
+	struct lte_param cur_band;
+	struct lte_param sup_band;
+	struct lte_param area_code;
+	struct lte_param operator;
+	struct lte_param mcc;
+	struct lte_param mnc;
+	struct lte_param cellid_hex;
+	struct lte_param ip_address;
+	struct lte_param ue_mode;
+	struct lte_param lte_mode;
+	struct lte_param nbiot_mode;
+	struct lte_param gps_mode;
+
+	double cellid_dec;
+};
+
+struct sim_param {
+	struct lte_param uicc;
+	struct lte_param iccid;
+};
+
+struct device_param {
+	struct lte_param modem_fw;
+	struct lte_param battery;
+	const char *board;
+};
+
+struct modem_param_info {
+	struct network_param network;
+	struct sim_param     sim;
+	struct device_param  device;
+};
+
+/** @brief Initialize the modem information module.
  *
  * @retval 0 If the operation was successful.
  *           Otherwise, a (negative) error code is returned.
  */
 int modem_info_init(void);
+
+
+/** @brief Initialize the modem information storage module.
+ *
+ * @param modem_param Pointer to the storage parameter.
+ *
+ * @retval 0 If the operation was successful.
+ *           Otherwise, a (negative) error code is returned.
+ */
+int modem_info_params_init(struct modem_param_info *modem_param);
 
 /** @brief Initialize the subscription of RSRP values.
  *
@@ -104,10 +162,11 @@ int modem_info_name_get(enum modem_info info, char *name);
  * @param info The requested information type.
  *
  * @return The data type of the requested modem information data.
+ *         Otherwise, a (negative) error code is returned.
  */
 enum at_param_type modem_info_type_get(enum modem_info info);
 
-/** @brief Function for requesting the current device status.
+/** @brief Function for encoding the modem parameters.
  *
  * The data is added to the string buffer with JSON formatting.
  *
@@ -117,7 +176,19 @@ enum at_param_type modem_info_type_get(enum modem_info info);
  *         successful.
  *         Otherwise, a (negative) error code is returned.
  */
-int modem_info_json_string_get(char *buf);
+int modem_info_json_string_encode(struct modem_param_info *modem_param,
+				  char *buf);
+
+/** @brief Function for obtaining the modem parameters.
+ *
+ * The data is stored to the provided info struct.
+ *
+ * @param modem_param Pointer to the storage parameter.
+ *
+ * @retval 0 If the operation was successful.
+ *           Otherwise, a (negative) error code is returned.
+ */
+int modem_info_params_get(struct modem_param_info *modem_param);
 
 /** @} */
 
