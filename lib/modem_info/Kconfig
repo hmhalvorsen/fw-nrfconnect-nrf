@@ -48,7 +48,7 @@ config MODEM_INFO_DEVICE_STRING_SIM
 	bool
 	default y
 	help
-		Add the sim information to the returned
+		Add the sim card information to the returned
 		device string.
 
 config MODEM_INFO_DEVICE_STRING_DEVICE

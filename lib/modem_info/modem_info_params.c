@@ -23,7 +23,7 @@ int modem_info_params_init(struct modem_param_info *modem)
 	modem->network.cur_band.type	= MODEM_INFO_CUR_BAND;
 	modem->network.sup_band.type	= MODEM_INFO_SUP_BAND;
 	modem->network.area_code.type	= MODEM_INFO_AREA_CODE;
-	modem->network.operator.type	= MODEM_INFO_OPERATOR;
+	modem->network.cur_op.type	= MODEM_INFO_OPERATOR;
 	modem->network.mcc.type		= MODEM_INFO_MCC;
 	modem->network.mnc.type		= MODEM_INFO_MNC;
 	modem->network.cellid_hex.type	= MODEM_INFO_CELLID;
@@ -39,6 +39,8 @@ int modem_info_params_init(struct modem_param_info *modem)
 	modem->device.modem_fw.type	= MODEM_INFO_FW_VERSION;
 	modem->device.battery.type	= MODEM_INFO_BATTERY;
 	modem->device.board		= CONFIG_BOARD;
+	modem->device.app_version	= STRINGIFY(APP_VERSION);
+	modem->device.app_name		= STRINGIFY(PROJECT_NAME);
 
 	return 0;
 }
@@ -57,21 +59,21 @@ static int area_code_parse(struct lte_param *area_code)
 	return 0;
 }
 
-static int mcc_mnc_parse(struct lte_param *operator,
+static int mcc_mnc_parse(struct lte_param *cur_op,
 			 struct lte_param *mcc,
 			 struct lte_param *mnc)
 {
-	if (operator == NULL || mcc == NULL || mnc == NULL) {
+	if (cur_op == NULL || mcc == NULL || mnc == NULL) {
 		return -EINVAL;
 	}
 
-	memcpy(mcc->string, operator->string, 3);
+	memcpy(mcc->string, cur_op->string, 3);
 
-	if (sizeof(operator->string) - 1 < 6) {
+	if (sizeof(cur_op->string) - 1 < 6) {
 		mnc->string[0] = '0';
-		memcpy(&mnc->string[1], &operator->string[3], 2);
+		memcpy(&mnc->string[1], &cur_op->string[3], 2);
 	} else {
-		memcpy(&mnc->string, &operator->string[3], 3);
+		memcpy(&mnc->string, &cur_op->string[3], 3);
 	}
 
 	/* Parses the string, interpreting its content as an	*/
@@ -135,14 +137,14 @@ int modem_info_params_get(struct modem_param_info *modem)
 	ret += modem_data_get(&modem->network.sup_band);
 	ret += modem_data_get(&modem->network.ip_address);
 	ret += modem_data_get(&modem->network.ue_mode);
-	ret += modem_data_get(&modem->network.operator);
+	ret += modem_data_get(&modem->network.cur_op);
 	ret += modem_data_get(&modem->network.cellid_hex);
 	ret += modem_data_get(&modem->network.area_code);
 	ret += modem_data_get(&modem->network.lte_mode);
 	ret += modem_data_get(&modem->network.nbiot_mode);
 	ret += modem_data_get(&modem->network.gps_mode);
 
-	ret += mcc_mnc_parse(&modem->network.operator,
+	ret += mcc_mnc_parse(&modem->network.cur_op,
 			     &modem->network.mcc,
 			     &modem->network.mnc);
 	ret += cellid_to_dec(&modem->network.cellid_hex,

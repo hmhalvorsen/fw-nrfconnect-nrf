@@ -184,6 +184,8 @@ static int device_data_add(struct device_param *device, cJSON *json_obj)
 	total_len = json_add_data(&device->modem_fw, json_obj);
 	total_len += json_add_data(&device->battery, json_obj);
 	total_len += json_add_str(json_obj, "board", device->board);
+	total_len += json_add_str(json_obj, "appVersion", device->app_version);
+	total_len += json_add_str(json_obj, "appName", device->app_name);
 
 	return total_len;
 }

@@ -43,52 +43,59 @@ enum modem_info {
 	MODEM_INFO_BATTERY,	/**< Battery voltage. */
 	MODEM_INFO_TEMP,	/**< Temperature level. */
 	MODEM_INFO_FW_VERSION,  /**< Modem firmware version. */
-	MODEM_INFO_ICCID,	/**< SIM ICCID */
+	MODEM_INFO_ICCID,	/**< SIM ICCID. */
 	MODEM_INFO_LTE_MODE,	/**< LTE-M support mode. */
 	MODEM_INFO_NBIOT_MODE,	/**< NB-IoT support mode. */
 	MODEM_INFO_GPS_MODE,	/**< GPS support mode. */
 	MODEM_INFO_COUNT,	/**< Number of legal elements in the enum. */
 };
 
+/**@brief LTE parameter data. **/
 struct lte_param {
-	u16_t value;
-	char string[MODEM_INFO_MAX_RESPONSE_SIZE];
-	char *data_name;
-	enum modem_info type;
+	u16_t value; /**< The retrieved value. */
+	char string[MODEM_INFO_MAX_RESPONSE_SIZE]; /**< The retrieved value in string format. */
+	char *data_name; /**< The name of the information type. */
+	enum modem_info type; /**< The information type. */
 };
 
+/**@brief Network parameters. **/
 struct network_param {
-	struct lte_param cur_band;
-	struct lte_param sup_band;
-	struct lte_param area_code;
-	struct lte_param operator;
-	struct lte_param mcc;
-	struct lte_param mnc;
-	struct lte_param cellid_hex;
-	struct lte_param ip_address;
-	struct lte_param ue_mode;
-	struct lte_param lte_mode;
-	struct lte_param nbiot_mode;
-	struct lte_param gps_mode;
+	struct lte_param cur_band; /**< Current LTE band. */
+	struct lte_param sup_band; /**< Supported LTE bands. */
+	struct lte_param area_code; /**< Tracking area code. */
+	struct lte_param cur_op; /**< Current operator. */
+	struct lte_param mcc; /**< Mobile country code. */
+	struct lte_param mnc; /**< Mobile network code. */
+	struct lte_param cellid_hex; /**< Cell ID of the device (in HEX format). */
+	struct lte_param ip_address; /**< IP address of the device. */
+	struct lte_param ue_mode; /**< Current mode. */
+	struct lte_param lte_mode; /**< LTE-M support mode. */
+	struct lte_param nbiot_mode; /**< NB-IoT support mode. */
+	struct lte_param gps_mode; /**< GPS support mode. */
 
-	double cellid_dec;
+	double cellid_dec; /**< Cell ID of the device (in decimal format). */
 };
 
+/**@brief SIM card parameters. */
 struct sim_param {
-	struct lte_param uicc;
-	struct lte_param iccid;
+	struct lte_param uicc; /**< UICC state. */
+	struct lte_param iccid; /**< SIM ICCID. */
 };
 
+/**@brief Device parameters. */
 struct device_param {
-	struct lte_param modem_fw;
-	struct lte_param battery;
-	const char *board;
+	struct lte_param modem_fw; /**< Modem firmware version. */
+	struct lte_param battery; /**< Battery voltage. */
+	const char *board; /**< Board version. */
+	const char *app_version; /**< Application version. */
+	const char *app_name; /**< Application name. */
 };
 
+/**@brief Modem parameters. */
 struct modem_param_info {
-	struct network_param network;
-	struct sim_param     sim;
-	struct device_param  device;
+	struct network_param network; /**< Network parameters. */
+	struct sim_param     sim; /**< SIM card parameters. */
+	struct device_param  device;/**< Device parameters. */
 };
 
 /** @brief Initialize the modem information module.
@@ -99,9 +106,9 @@ struct modem_param_info {
 int modem_info_init(void);
 
 
-/** @brief Initialize the modem information storage module.
+/** @brief Initialize the structure that stores modem information.
  *
- * @param modem_param Pointer to the storage parameter.
+ * @param modem_param Pointer to the modem parameter structure.
  *
  * @retval 0 If the operation was successful.
  *           Otherwise, a (negative) error code is returned.
@@ -145,8 +152,7 @@ int modem_info_string_get(enum modem_info info, char *buf);
  */
 int modem_info_short_get(enum modem_info info, u16_t *buf);
 
-/** @brief Function for requesting the name of a modem information
- *         data type.
+/** @brief Request the name of a modem information data type.
  *
  * @param info The requested information type.
  * @param buf  The string where to store the name.
@@ -156,8 +162,8 @@ int modem_info_short_get(enum modem_info info, u16_t *buf);
  */
 int modem_info_name_get(enum modem_info info, char *name);
 
-/** @brief Function for requesting the data type of the current
- *         modem information type.
+/** @brief Request the data type of the current modem information
+ *         type.
  *
  * @param info The requested information type.
  *
@@ -166,7 +172,7 @@ int modem_info_name_get(enum modem_info info, char *name);
  */
 enum at_param_type modem_info_type_get(enum modem_info info);
 
-/** @brief Function for encoding the modem parameters.
+/** @brief Encode the modem parameters.
  *
  * The data is added to the string buffer with JSON formatting.
  *
@@ -179,11 +185,11 @@ enum at_param_type modem_info_type_get(enum modem_info info);
 int modem_info_json_string_encode(struct modem_param_info *modem_param,
 				  char *buf);
 
-/** @brief Function for obtaining the modem parameters.
+/** @brief Obtain the modem parameters.
  *
- * The data is stored to the provided info struct.
+ * The data is stored in the provided info structure.
  *
- * @param modem_param Pointer to the storage parameter.
+ * @param modem_param Pointer to the storage parameters.
  *
  * @retval 0 If the operation was successful.
  *           Otherwise, a (negative) error code is returned.
