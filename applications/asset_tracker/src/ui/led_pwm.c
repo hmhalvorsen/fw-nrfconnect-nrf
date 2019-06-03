@@ -13,7 +13,7 @@
 #include "led_effect.h"
 
 #include <logging/log.h>
-LOG_MODULE_REGISTER(led_pwm, CONFIG_LOG_LEVEL_ERR);
+LOG_MODULE_REGISTER(led_pwm, 4);
 
 struct led {
 	struct device *pwm_dev;

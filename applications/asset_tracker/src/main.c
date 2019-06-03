@@ -125,7 +125,6 @@ static atomic_val_t send_data_enable = 1;
 static bool flip_mode_enabled = true;
 
 /* Structures for work */
-static struct k_work connect_work;
 static struct k_delayed_work flip_poll_work;
 static struct k_delayed_work long_press_button_work;
 #if CONFIG_MODEM_INFO
@@ -146,12 +145,12 @@ static void flip_send(struct k_work *work);
 static void env_data_send(void);
 static void sensors_init(void);
 static void work_init(void);
-static void sensor_data_send(struct nrf_cloud_sensor_data *data);
+static void sensor_data_send(struct cloud_channel_data *data);
 
 /**@brief nRF Cloud error handler. */
 void error_handler(enum error_type err_type, int err_code)
 {
-	if (err_type == ERROR_NRF_CLOUD) {
+	if (err_type == ERROR_CLOUD) {
 #if defined(CONFIG_LTE_LINK_CONTROL)
 		/* Turn off and shutdown modem */
 		int err = lte_lc_power_off();
@@ -234,7 +233,7 @@ static void gps_trigger_handler(struct device *dev, struct gps_trigger *trigger)
 
 	gps_sample_fetch(dev);
 	gps_channel_get(dev, GPS_CHAN_NMEA, &nmea_data);
-	gps_cloud_data.data.ptr = nmea_data.str;
+	gps_cloud_data.data.buf = nmea_data.str;
 	gps_cloud_data.data.len = nmea_data.len;
 	gps_cloud_data.tag += 1;
 
@@ -320,7 +319,7 @@ exit:
 }
 
 static void cloud_cmd_handler(struct cloud_command *cmd) {
-	/* Command handling goes here. */
+	printk("cmd parsed \n");
 }
 
 #if CONFIG_MODEM_INFO
@@ -448,13 +447,13 @@ static void sensor_data_send(struct cloud_channel_data *data)
 }
 
 /**@brief Callback for data received event from nRF Cloud. */
-static void on_data_received(const struct nrf_cloud_evt *p_evt)
+static void on_data_received(const struct cloud_event *evt)
 {
 #ifdef CONFIG_UI_LED_USE_PWM
 	static enum ui_led_pattern prev_pattern = UI_CLOUD_CONNECTED;
 #endif
 
-	if (memcmp(p_evt->param.data.ptr, CLOUD_LED_ON_STR,
+	if (memcmp(evt->data.msg.payload, CLOUD_LED_ON_STR,
 	    strlen(CLOUD_LED_ON_STR)) == 0) {
 #ifdef CONFIG_UI_LED_USE_PWM
 		prev_pattern = ui_led_get_pattern();
@@ -462,7 +461,7 @@ static void on_data_received(const struct nrf_cloud_evt *p_evt)
 #else
 		ui_led_set_state(CLOUD_LED_NUMBER, 1);
 #endif /* CONFIG_UI_LED_USE_PWM */
-	} else if (memcmp(p_evt->param.data.ptr, CLOUD_LED_OFF_STR,
+	} else if (memcmp(evt->data.msg.payload, CLOUD_LED_OFF_STR,
 		   strlen(CLOUD_LED_OFF_STR)) == 0) {
 #ifdef CONFIG_UI_LED_USE_PWM
 		ui_led_set_pattern(prev_pattern);
@@ -474,15 +473,15 @@ static void on_data_received(const struct nrf_cloud_evt *p_evt)
 	}
 }
 
-	err = cloud_send(cloud_backend, &msg);
+// 	err = cloud_send(cloud_backend, &msg);
 
-	k_free(output.buf);
+// 	k_free(output.buf);
 
-	if (err) {
-		printk("sensor_data_send failed: %d\n", err);
-		cloud_error_handler(err);
-	}
-}
+// 	if (err) {
+// 		printk("sensor_data_send failed: %d\n", err);
+// 		cloud_error_handler(err);
+// 	}
+// }
 
 /**@brief Callback for sensor attached event from nRF Cloud. */
 void sensors_start(void)
@@ -501,7 +500,7 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 	switch (evt->type) {
 	case CLOUD_EVT_CONNECTED:
 		printk("CLOUD_EVT_CONNECTED\n");
-		display_state = LEDS_CONNECTED;
+		ui_led_set_pattern(UI_CLOUD_CONNECTED);
 		break;
 	case CLOUD_EVT_READY:
 		printk("CLOUD_EVT_READY\n");
@@ -534,7 +533,7 @@ static void app_connect(struct k_work *work)
 {
 	int err;
 
-	display_state = LEDS_CONNECTING;
+	ui_led_set_pattern(UI_CLOUD_CONNECTING);
 	err = cloud_connect(cloud_backend);
 
 	if (err) {
@@ -765,20 +764,20 @@ void button_handler(struct ui_evt evt)
 		if (evt.type == UI_EVT_BUTTON_ACTIVE) {
 			err = lte_lc_edrx_req(false);
 			if (err) {
-				error_handler(ERROR_LTE_LC, err);
+				error_handler(UI_LED_ERROR_LTE_LC, err);
 			}
 			err = lte_lc_psm_req(true);
 			if (err) {
-				error_handler(ERROR_LTE_LC, err);
+				error_handler(UI_LED_ERROR_LTE_LC, err);
 			}
 		} else {
 			err = lte_lc_psm_req(false);
 			if (err) {
-				error_handler(ERROR_LTE_LC, err);
+				error_handler(UI_LED_ERROR_LTE_LC, err);
 			}
 			err = lte_lc_edrx_req(true);
 			if (err) {
-				error_handler(ERROR_LTE_LC, err);
+				error_handler(UI_LED_ERROR_LTE_LC, err);
 			}
 		}
 	}
@@ -811,7 +810,7 @@ void main(void)
 	work_init();
 	modem_configure();
 
-	display_state = LEDS_CONNECTING;
+	ui_led_set_pattern(UI_CLOUD_CONNECTING);
 	ret = cloud_connect(cloud_backend);
 
 	if (ret) {
