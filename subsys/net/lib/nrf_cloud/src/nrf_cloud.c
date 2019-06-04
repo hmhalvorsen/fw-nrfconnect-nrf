@@ -126,6 +126,33 @@ int nrf_cloud_user_associate(const struct nrf_cloud_ua_param *param)
 	return err;
 }
 
+int nrf_cloud_shadow_update(const struct nrf_cloud_sensor_data *param)
+{
+	int err;
+	struct nct_cc_data sensor_data = {
+		.opcode = NCT_CC_OPCODE_UPDATE_REQ,
+		.id = 901
+	};
+
+	if (NOT_VALID_STATE(STATE_DC_CONNECTED)) {
+		return -EACCES;
+	}
+
+	if (param == NULL) {
+		return -EINVAL;
+	}
+
+	err = nrf_cloud_encode_shadow_data(param, &sensor_data.data);
+	if (err) {
+		return err;
+	}
+
+	err = nct_cc_send(&sensor_data);
+	nrf_cloud_free((void *)sensor_data.data.ptr);
+
+	return err;
+}
+
 int nrf_cloud_sensor_attach(const struct nrf_cloud_sa_param *param)
 {
 	if (NOT_VALID_STATE(STATE_DC_CONNECTED)) {
