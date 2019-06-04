@@ -7,6 +7,8 @@
 #ifndef ZEPHYR_INCLUDE_MODEM_INFO_H_
 #define ZEPHYR_INCLUDE_MODEM_INFO_H_
 
+#include <cJSON.h>
+
 /**
  * @file modem_info.h
  *
@@ -182,8 +184,8 @@ enum at_param_type modem_info_type_get(enum modem_info info);
  *         successful.
  *         Otherwise, a (negative) error code is returned.
  */
-int modem_info_json_string_encode(struct modem_param_info *modem_param,
-				  char *buf);
+int modem_info_json_object_encode(struct modem_param_info *modem,
+				  cJSON *root_obj);
 
 /** @brief Obtain the modem parameters.
  *

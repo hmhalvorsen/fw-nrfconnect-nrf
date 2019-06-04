@@ -442,9 +442,15 @@ static void modem_rsrp_data_send(struct k_work *work)
 /**@brief Poll device info and send data to the cloud. */
 static void device_status_send(struct k_work *work)
 {
-	char data_buffer[MODEM_INFO_JSON_STRING_SIZE] = {0};
 	int len;
 	int ret;
+
+	cJSON *root_obj = cJSON_CreateObject();
+
+	if (root_obj == NULL) {
+		printk("Unable to allocate JSON object\n");
+		return;
+	}
 
 	if (!atomic_get(&send_data_enable)) {
 		return;
@@ -457,13 +463,13 @@ static void device_status_send(struct k_work *work)
 		return;
 	}
 
-	len = modem_info_json_string_encode(&modem_param, data_buffer);
+	len = modem_info_json_object_encode(&modem_param, root_obj);
 
 	if (len < 0) {
 		return;
 	}
 
-	device_cloud_data.data.ptr = data_buffer;
+	device_cloud_data.data.ptr = root_obj;
 	device_cloud_data.data.len = len;
 	device_cloud_data.tag += 1;
 

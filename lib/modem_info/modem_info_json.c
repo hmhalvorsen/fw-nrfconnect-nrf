@@ -49,6 +49,10 @@ static int json_add_str(cJSON *parent, const char *str, const char *item)
 {
 	cJSON *json_str;
 
+	if (parent == NULL || str == NULL || item == NULL) {
+		return -EINVAL;
+	}
+
 	json_str = cJSON_CreateString(item);
 	if (json_str == NULL) {
 		return -ENOMEM;
@@ -63,6 +67,10 @@ static int json_add_data(struct lte_param *param, cJSON *json_obj)
 	enum at_param_type data_type;
 	size_t total_len = 0;
 	size_t ret;
+
+	if (param == NULL || json_obj == NULL) {
+		return -EINVAL;
+	}
 
 	memset(data_name, 0, MODEM_INFO_MAX_RESPONSE_SIZE);
 	ret = modem_info_name_get(param->type,
@@ -190,17 +198,17 @@ static int device_data_add(struct device_param *device, cJSON *json_obj)
 	return total_len;
 }
 
-int modem_info_json_string_encode(struct modem_param_info *modem, char *buf)
+int modem_info_json_object_encode(struct modem_param_info *modem,
+				  cJSON *root_obj)
 {
 	size_t total_len = 0;
 	int ret;
 
-	cJSON *data_obj		= cJSON_CreateObject();
 	cJSON *network_obj	= cJSON_CreateObject();
 	cJSON *sim_obj		= cJSON_CreateObject();
 	cJSON *device_obj	= cJSON_CreateObject();
 
-	if (data_obj == NULL || network_obj == NULL ||
+	if (root_obj == NULL || network_obj == NULL ||
 	    sim_obj == NULL || device_obj == NULL) {
 		return -ENOMEM;
 	}
@@ -213,7 +221,7 @@ int modem_info_json_string_encode(struct modem_param_info *modem, char *buf)
 		}
 
 		total_len += ret;
-		json_add_obj(data_obj, "networkInfo", network_obj);
+		json_add_obj(root_obj, "networkInfo", network_obj);
 	}
 
 	if (IS_ENABLED(CONFIG_MODEM_INFO_DEVICE_STRING_SIM)) {
@@ -224,7 +232,7 @@ int modem_info_json_string_encode(struct modem_param_info *modem, char *buf)
 		}
 
 		total_len += ret;
-		json_add_obj(data_obj, "simInfo", sim_obj);
+		json_add_obj(root_obj, "simInfo", sim_obj);
 	}
 
 	if (IS_ENABLED(CONFIG_MODEM_INFO_DEVICE_STRING_DEVICE)) {
@@ -235,16 +243,8 @@ int modem_info_json_string_encode(struct modem_param_info *modem, char *buf)
 		}
 
 		total_len += ret;
-		json_add_obj(data_obj, "deviceInfo", device_obj);
+		json_add_obj(root_obj, "deviceInfo", device_obj);
 	}
-
-	if (total_len > 0) {
-		memcpy(buf,
-			cJSON_PrintUnformatted(data_obj),
-			MODEM_INFO_JSON_STRING_SIZE);
-	}
-
-	cJSON_Delete(data_obj);
 
 	return total_len;
 }
