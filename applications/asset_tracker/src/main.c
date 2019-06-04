@@ -570,6 +570,8 @@ static void sensor_data_send(struct nrf_cloud_sensor_data *data)
 
 	if (data->type == NRF_CLOUD_SENSOR_GPS) {
 		err = nrf_cloud_sensor_data_send(data);
+	} else if (data->type == NRF_CLOUD_DEVICE_INFO) {
+		err = nrf_cloud_shadow_update(data);
 	} else {
 		err = nrf_cloud_sensor_data_stream(data);
 	}
